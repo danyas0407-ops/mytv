@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мои 5 Каналов</title>
+    <style>
+        /* Настройки внешнего вида */
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #000; /* Черный фон */
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* Убираем прокрутку экрана */
+        }
+        
+        /* Меню каналов */
+        #tv-menu {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #1e1e1e, #000000);
+        }
+
+        /* Плитки каналов */
+        .channel-card {
+            background-color: #333;
+            color: white;
+            border: 3px solid transparent;
+            padding: 20px 40px;
+            margin: 10px;
+            font-size: 28px;
+            border-radius: 10px;
+            transition: 0.2s; /* Плавное увеличение */
+            outline: none;
+            width: 450px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        /* Когда навели пультом на канал */
+        .channel-card:focus {
+            border: 3px solid #00ffcc;
+            background-color: #555;
+            transform: scale(1.1); /* Увеличение */
+            box-shadow: 0 0 15px #00ffcc; /* Свечение */
+        }
+
+        /* Видеоплеер (сначала спрятан) */
+        #video-player {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: none; 
+            outline: none;
+        }
+
+        #hint {
+            position: absolute;
+            bottom: 30px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Экран с кнопками -->
+    <div id="tv-menu">
+        <h1 style="color: white; margin-bottom: 30px;">Выберите канал</h1>
+        
+        <!-- ВНИМАНИЕ: Здесь внутри data-url="ССЫЛКА" ты потом вставишь свои ссылки на фильмы .mp4 -->
+        <button class="channel-card" data-url="https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4">Комедии</button>
+        <button class="channel-card" data-url="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">Американские фильмы</button>
+        <button class="channel-card" data-url="https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4">Русские фильмы</button>
+        <button class="channel-card" data-url="https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4">Мультики</button>
+        <button class="channel-card" data-url="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4">Экшен</button>
+        
+        <div id="hint">Пульт: Стрелки для выбора, ОК для просмотра. Вверх/Вниз во время видео - выход в меню.</div>
+    </div>
+
+    <!-- Сам плеер -->
+    <video id="video-player" controls></video>
+
+    <!-- Мозги: логика переключения и запуска -->
+    <script>
+        const channels = document.querySelectorAll('.channel-card');
+        const tvMenu = document.getElementById('tv-menu');
+        const videoPlayer = document.getElementById('video-player');
+        let currentIndex = 0;
+        let isVideoPlaying = false;
+
+        // При запуске сразу выделяем первый канал
+        window.onload = () => {
+            if(channels.length > 0) channels[0].focus();
+        };
+
+        // Обработка кнопок пульта (или клавиатуры)
+        document.addEventListener('keydown', (e) => {
+            
+            // Если видео уже идет
+            if (isVideoPlaying) {
+                // Если нажали Назад (Escape, Backspace) или стрелки - выходим в меню
+                if (e.key === 'Escape' || e.key === 'Backspace' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    stopVideoAndShowMenu();
+                }
+                return; // Остальные кнопки не трогаем, пусть плеер сам ими управляет
+            }
+
+            // Если мы в меню выбора каналов
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                currentIndex++;
+                if (currentIndex >= channels.length) currentIndex = 0;
+                channels[currentIndex].focus();
+            } 
+            else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                currentIndex--;
+                if (currentIndex < 0) currentIndex = channels.length - 1;
+                channels[currentIndex].focus();
+            }
+            // Кнопка ОК (Enter)
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                playSelectedChannel(channels[currentIndex]);
+            }
+        });
+
+        // Запуск канала
+        function playSelectedChannel(buttonElement) {
+            const videoUrl = buttonElement.getAttribute('data-url');
+            
+            tvMenu.style.display = 'none'; // Прячем меню
+            videoPlayer.style.display = 'block'; // Показываем плеер
+            
+            videoPlayer.src = videoUrl;
+            videoPlayer.play();
+            
+            isVideoPlaying = true;
+        }
+
+        // Выход обратно в меню
+        function stopVideoAndShowMenu() {
+            videoPlayer.pause();
+            videoPlayer.src = ""; // Очищаем плеер, чтобы не грузил интернет
+            
+            videoPlayer.style.display = 'none';
+            tvMenu.style.display = 'flex';
+            
+            isVideoPlaying = false;
+            channels[currentIndex].focus(); // Возвращаем рамку на тот канал, что смотрели
+        }
+        
+        // Если решишь пощелкать мышкой на компьютере
+        channels.forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                currentIndex = index;
+                playSelectedChannel(btn);
+            });
+        });
+    </script>
+</body>
+</html>
