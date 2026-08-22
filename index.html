@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моё ТВ</title>
+    <style>
+        /* Дизайн приложения */
+        body {
+            background-color: #000000;
+            color: white;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Верхняя панель с кнопками */
+        .controls {
+            background-color: #1a1a1a;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+
+        /* Кнопки каналов */
+        button {
+            background-color: #333333;
+            color: #ffffff;
+            border: 3px solid transparent;
+            padding: 15px 25px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        /* Эффект при наведении (для пульта) */
+        button:focus, button:hover {
+            background-color: #0056b3;
+            border: 3px solid #00c3ff;
+            transform: scale(1.05);
+            outline: none;
+        }
+
+        /* Контейнер плеера */
+        .player-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Меню с твоими 5 каналами -->
+    <div class="controls">
+        <button onclick="changeChannel(1)">Русские фильмы</button>
+        <button onclick="changeChannel(2)">Американские фильмы</button>
+        <button onclick="changeChannel(3)">Мультики</button>
+        <button onclick="changeChannel(4)">Экшн</button>
+        <button onclick="changeChannel(5)">Комедии</button>
+    </div>
+
+    <!-- Плеер -->
+    <div class="player-container">
+        <video id="tv-player" controls autoplay></video>
+    </div>
+
+    <script>
+        // --- ПЛЕЙЛИСТЫ КАНАЛОВ ---
+        // Сейчас тут стоят вечные тестовые ссылки. 
+        // Когда найдешь надежные ссылки на свои фильмы (.mp4), просто замени эти!
+
+        const channel1 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" 
+        ];
+
+        const channel2 = [
+            // Сюда потом вставишь вечную ссылку на Гарри Поттера
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        ];
+
+        const channel3 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" 
+        ];
+
+        const channel4 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+        ];
+
+        const channel5 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
+        ];
+
+        // --- ЛОГИКА РАБОТЫ ТЕЛЕВИЗОРА ---
+        let currentPlaylist = channel1; 
+        let currentMovieIndex = 0;
+        const player = document.getElementById('tv-player');
+
+        // Функция воспроизведения
+        function playMovie() {
+            player.src = currentPlaylist[currentMovieIndex];
+            player.play();
+        }
+
+        // Функция переключения каналов
+        function changeChannel(channelNum) {
+            if (channelNum === 1) currentPlaylist = channel1;
+            if (channelNum === 2) currentPlaylist = channel2;
+            if (channelNum === 3) currentPlaylist = channel3;
+            if (channelNum === 4) currentPlaylist = channel4;
+            if (channelNum === 5) currentPlaylist = channel5;
+            
+            currentMovieIndex = 0; // Начинаем канал с первого фильма
+            playMovie();
+        }
+
+        // Авто-переключение на следующий фильм (если закончился текущий)
+        player.onended = function() {
+            currentMovieIndex++;
+            if (currentMovieIndex >= currentPlaylist.length) {
+                currentMovieIndex = 0; // Если фильмы кончились, начинаем канал заново
+            }
+            playMovie();
+        };
+
+        // Включаем первый канал при старте
+        changeChannel(1);
+    </script>
+</body>
+</html>
