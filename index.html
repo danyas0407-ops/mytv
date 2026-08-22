@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приложение Такси</title>
+    <style>
+        :root {
+            --primary: #ffd900;
+            --dark: #222;
+            --light: #f4f4f4;
+            --white: #fff;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 400px;
+            background: var(--white);
+            height: 100vh;
+            max-height: 800px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: var(--primary);
+            color: var(--dark);
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .screen {
+            padding: 20px;
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: var(--dark);
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* Звезды рейтинга */
+        .rating-container {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: center;
+            gap: 5px;
+            font-size: 40px;
+            margin: 20px 0;
+        }
+
+        .star {
+            color: #ccc;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .star:hover,
+        .star:hover ~ .star,
+        .star.active,
+        .star.active ~ .star {
+            color: #ff9800;
+        }
+
+        .review-card {
+            background: var(--light);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .stars-display {
+            color: #ff9800;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="header">🚕 Такси</div>
+
+    <!-- Экран регистрации/Входа -->
+    <div id="auth-screen" class="screen active">
+        <h2>Регистрация</h2>
+        <div class="form-group">
+            <label>Имя</label>
+            <input type="text" id="username" placeholder="Ваше имя">
+        </div>
+        <div class="form-group">
+            <label>Пароль</label>
+            <input type="password" placeholder="Введите пароль">
+        </div>
+        <div class="form-group">
+            <label>Кто вы?</label>
+            <div class="radio-group">
+                <label><input type="radio" name="role" value="passenger" checked> Пассажир</label>
+                <label><input type="radio" name="role" value="driver"> Водитель</label>
+            </div>
+        </div>
+        <button onclick="login()">Войти</button>
+    </div>
+
+    <!-- Экран Пассажира -->
+    <div id="passenger-screen" class="screen">
+        <h2>Здравствуйте, <span id="pass-name"></span>!</h2>
+        <p>Вы вошли как пассажир.</p>
+        
+        <div style="background: #e9ecef; height: 150px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+            Карта города
+        </div>
+
+        <button onclick="requestRide()">Заказать такси</button>
+        <button onclick="showReviewForm()" style="background: #28a745; color: white; margin-top: 20px; display: none;" id="finish-ride-btn">Завершить поездку и оставить отзыв</button>
+    </div>
+
+    <!-- Экран Водителя -->
+    <div id="driver-screen" class="screen">
+        <h2>Кабинет водителя: <span id="drv-name"></span></h2>
+        <p>Ваш рейтинг: <span class="stars-display">★★★★☆</span> (4.0)</p>
+        
+        <h3>Последние отзывы:</h3>
+        <div id="reviews-list">
+            <div class="review-card">
+                <div class="stars-display">★★★★★</div>
+                <p>Отличный водитель, приехал быстро!</p>
+                <small>- Иван</small>
+            </div>
+        </div>
+        
+        <button onclick="logout()" style="background: #dc3545; color: white;">Выйти</button>
+    </div>
+
+    <!-- Экран оставления отзыва -->
+    <div id="review-screen" class="screen">
+        <h2>Оцените поездку</h2>
+        <p>Как вам поездка с водителем Алексеем?</p>
+        
+        <!-- Рейтинг звездами (используем data-атрибуты для логики) -->
+        <div class="rating-container" id="stars">
+            <span class="star" data-value="5">★</span>
+            <span class="star" data-value="4">★</span>
+            <span class="star" data-value="3">★</span>
+            <span class="star" data-value="2">★</span>
+            <span class="star" data-value="1">★</span>
+        </div>
+        <input type="hidden" id="selected-rating" value="0">
+
+        <div class="form-group">
+            <label>Ваш отзыв</label>
+            <textarea id="review-text" rows="4" placeholder="Напишите, что вам понравилось или не понравилось..."></textarea>
+        </div>
+        
+        <button onclick="submitReview()">Отправить отзыв</button>
+    </div>
+</div>
+
+<script>
+    // Навигация по экранам
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    // Логика входа
+    function login() {
+        const name = document.getElementById('username').value || 'Гость';
+        const role = document.querySelector('input[name="role"]:checked').value;
+
+        if (role === 'passenger') {
+            document.getElementById('pass-name').textContent = name;
+            showScreen('passenger-screen');
+        } else {
+            document.getElementById('drv-name').textContent = name;
+            showScreen('driver-screen');
+        }
+    }
+
+    function logout() {
+        showScreen('auth-screen');
+    }
+
+    // Имитация заказа такси
+    function requestRide() {
+        alert("Поиск водителя... Водитель найден!");
+        document.getElementById('finish-ride-btn').style.display = 'block';
+    }
+
+    function showReviewForm() {
+        showScreen('review-screen');
+    }
+
+    // Логика выбора звезд
+    const stars = document.querySelectorAll('.star');
+    const ratingInput = document.getElementById('selected-rating');
+
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            // Очищаем активный класс у всех звезд
+            stars.forEach(s => s.classList.remove('active'));
+            // Добавляем активный класс нажатой звезде (через CSS подкрасятся и те, что справа)
+            this.classList.add('active');
+            // Сохраняем значение
+            ratingInput.value = this.getAttribute('data-value');
+        });
+    });
+
+    // Отправка отзыва
+    function submitReview() {
+        const rating = ratingInput.value;
+        const text = document.getElementById('review-text').value;
+
+        if (rating == 0) {
+            alert("Пожалуйста, поставьте оценку от 1 до 5 звезд.");
+            return;
+        }
+
+        alert(`Спасибо! Вы поставили ${rating} звезд.\nВаш отзыв: ${text}`);
+        
+        // Сброс формы и возврат на главный экран пассажира
+        stars.forEach(s => s.classList.remove('active'));
+        ratingInput.value = 0;
+        document.getElementById('review-text').value = '';
+        document.getElementById('finish-ride-btn').style.display = 'none';
+        
+        showScreen('passenger-screen');
+    }
+</script>
+
+</body>
+</html>
