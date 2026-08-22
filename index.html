@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моё ТВ</title>
+    <style>
+        /* СТАРЫЙ УДОБНЫЙ СТИЛЬ */
+        body {
+            background-color: #000000;
+            color: white;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Панель с каналами наверху */
+        .controls {
+            background-color: #1a1a1a;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+
+        /* Большие кнопки для пульта */
+        button {
+            background-color: #333333;
+            color: #ffffff;
+            border: 3px solid transparent;
+            padding: 15px 25px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        /* Выделение кнопки, когда наводишь пультом */
+        button:focus, button:hover {
+            background-color: #0056b3;
+            border: 3px solid #00c3ff;
+            transform: scale(1.05);
+            outline: none;
+        }
+
+        /* Плеер занимает всё оставшееся место */
+        .player-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Видео не обрезается */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Меню каналов -->
+    <div class="controls">
+        <button onclick="changeChannel(1)">Русские фильмы</button>
+        <button onclick="changeChannel(2)">Американские фильмы</button>
+        <button onclick="changeChannel(3)">Мультики</button>
+        <button onclick="changeChannel(4)">Экшн</button>
+        <button onclick="changeChannel(5)">Комедии</button>
+    </div>
+
+    <!-- Плеер -->
+    <div class="player-container">
+        <video id="tv-player" controls autoplay></video>
+    </div>
+
+    <script>
+        // --- ТВОИ ПЛЕЙЛИСТЫ ---
+        
+        const channel1 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" 
+        ];
+
+        const channel2 = [
+            // Твоя ссылка на Гарри Поттера с фото!
+            "https://vd756.okcdn.ru/expires/1787477759088/srcIp/185.218.109.122/pr/40/srcAg/CHROME/ch/-1198713527/ms/95.163.35.33/mid/10141170477223/type/5/subId/8693927774887/sig/4NkWZEMMOAg/ct/8/du/9140384/urls/176.112.172.18/clientType/0/asubs/y/id/8669494971047/video/", 
+            // Второй фильм (пойдет после Гарри Поттера)
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+        ];
+
+        const channel3 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4" 
+        ];
+
+        const channel4 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+        ];
+
+        const channel5 = [
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
+        ];
+
+        // --- ЛОГИКА ПЛЕЕРА ---
+        let currentPlaylist = channel1; 
+        let currentMovieIndex = 0;
+        const player = document.getElementById('tv-player');
+
+        function playMovie() {
+            player.src = currentPlaylist[currentMovieIndex];
+            player.play();
+        }
+
+        function changeChannel(channelNum) {
+            if (channelNum === 1) currentPlaylist = channel1;
+            if (channelNum === 2) currentPlaylist = channel2;
+            if (channelNum === 3) currentPlaylist = channel3;
+            if (channelNum === 4) currentPlaylist = channel4;
+            if (channelNum === 5) currentPlaylist = channel5;
+            
+            currentMovieIndex = 0; 
+            playMovie();
+        }
+
+        // Авто-переключение на следующий фильм
+        player.onended = function() {
+            currentMovieIndex++;
+            if (currentMovieIndex >= currentPlaylist.length) {
+                currentMovieIndex = 0; // Начинаем канал заново
+            }
+            playMovie();
+        };
+
+        // Запуск первого канала при включении
+        changeChannel(1);
+    </script>
+</body>
+</html>
