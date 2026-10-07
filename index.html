@@ -3,489 +3,267 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Smart TV OS - Прямой эфир</title>
+    <title>Мой Телеканал</title>
     
-    <!-- Подключаем библиотеку HLS.js -->
+    <!-- Библиотека плеера -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <style>
-        :root {
-            --color-bg-base: #000000;
-            --color-bg-sidebar: #0a0a0a;
-            --color-bg-panel: #141414;
-            --color-brand-primary: #e50914;
-            --color-brand-hover: #ff0f1a;
-            --color-text-main: #ffffff;
-            --color-text-muted: #888888;
-            --color-border-dark: #222222;
-            --font-family-base: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #000; color: #fff; display: flex; height: 100vh; width: 100vw; overflow: hidden; }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        html, body {
-            width: 100vw;
-            height: 100vh;
-            background-color: var(--color-bg-base);
-            color: var(--color-text-main);
-            font-family: var(--font-family-base);
-            overflow: hidden;
-            position: fixed;
-        }
-
-        /* Экран запуска для разблокировки звука */
+        /* --- 1. СТАРТОВЫЙ ЭКРАН (для включения звука) --- */
         #start-screen {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(circle at center, #1a0000 0%, #000000 100%);
-            z-index: 9999;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            transition: opacity 0.5s ease, visibility 0.5s;
-        }
-        #start-screen.hidden { opacity: 0; visibility: hidden; }
-
-        .boot-logo {
-            font-size: 48px; color: var(--color-brand-primary); margin-bottom: 40px;
-            text-transform: uppercase; font-weight: 900;
-            text-shadow: 0 0 30px rgba(229, 9, 20, 0.6);
-        }
-
-        .btn-boot {
-            padding: 20px 50px; font-size: 24px; font-weight: bold;
-            background-color: var(--color-brand-primary); color: var(--color-text-main);
-            border: none; border-radius: 8px; cursor: pointer;
-            box-shadow: 0 10px 30px rgba(229, 9, 20, 0.4); text-transform: uppercase;
-        }
-
-        .app-container { display: flex; width: 100%; height: 100%; position: relative; }
-
-        /* Боковое меню */
-        .sidebar {
-            width: 350px; background-color: var(--color-bg-sidebar);
-            display: flex; flex-direction: column; border-right: 1px solid var(--color-border-dark);
-            z-index: 50; box-shadow: 10px 0 30px rgba(0,0,0,0.8);
-        }
-
-        .sidebar-header {
-            padding: 30px 20px; background-color: var(--color-bg-base);
-            border-bottom: 2px solid var(--color-border-dark);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-
-        .sidebar-header h2 { color: var(--color-brand-primary); font-size: 24px; }
-        .clock-display { color: var(--color-text-muted); font-size: 18px; font-family: monospace; }
-
-        .channel-list-container {
-            flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px;
-        }
-        .channel-list-container::-webkit-scrollbar { width: 8px; }
-        .channel-list-container::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-
-        .channel-btn {
-            background-color: var(--color-bg-panel); color: var(--color-text-muted);
-            border: 3px solid transparent; text-align: left; padding: 20px; font-size: 18px;
-            cursor: pointer; border-radius: 12px; outline: none;
-            display: flex; flex-direction: column; gap: 8px; transition: 0.2s;
-        }
-        .channel-name { font-weight: bold; font-size: 20px; color: inherit; }
-        .channel-number { font-size: 14px; background: #222; padding: 3px 8px; border-radius: 4px; display: inline-block; }
-        
-        .channel-btn.active {
-            background-color: #1a1a1a; color: var(--color-text-main);
-            border-left: 5px solid var(--color-brand-primary);
-        }
-
-        /* Телепрограмма EPG */
-        .epg-container {
-            height: 30%; background-color: #0f0f0f; border-top: 2px solid var(--color-border-dark);
-            padding: 20px; display: flex; flex-direction: column; gap: 10px;
-        }
-        .epg-title { color: var(--color-brand-primary); font-size: 14px; text-transform: uppercase; }
-        .epg-item.now { border-left: 3px solid var(--color-brand-primary); padding-left: 10px; }
-        .epg-item.next { border-left: 3px solid #444; padding-left: 10px; opacity: 0.6; margin-top: 10px; }
-        .epg-time { color: var(--color-text-muted); font-size: 12px; }
-        .epg-movie { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;}
-
-        /* Контейнер телевизора (именно он разворачивается на весь экран) */
-        .tv-screen {
-            flex: 1; position: relative; background-color: #000;
-            display: flex; justify-content: center; align-items: center;
-        }
-
-        /* Видео */
-        video {
-            width: 100%; height: 100%; object-fit: contain;
-            pointer-events: none; outline: none; z-index: 10;
-        }
-
-        /* Невидимый слой поверх видео для двойного клика (полноэкранного режима) */
-        .click-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; cursor: pointer;
-        }
-
-        .crt-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
-            background-size: 100% 4px; z-index: 20; pointer-events: none;
-        }
-
-        .channel-logo-img {
-            position: absolute; top: 40px; right: 40px; width: 100px; opacity: 0.65;
-            z-index: 30; pointer-events: none;
-        }
-
-        /* Плашка канала OSD */
-        .osd-container {
-            position: absolute; top: 40px; left: 40px; z-index: 40; pointer-events: none;
-            opacity: 0; transition: opacity 0.4s;
-        }
-        .osd-container.visible { opacity: 1; }
-        .osd-channel-info {
-            background: rgba(0, 0, 0, 0.85); padding: 20px 30px; border-radius: 12px;
-            border-left: 6px solid var(--color-brand-primary);
-        }
-        .osd-ch-number { font-size: 24px; font-weight: 900; color: var(--color-brand-primary); }
-        .osd-ch-name { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
-        .osd-ch-movie { font-size: 18px; color: var(--color-text-muted); }
-
-        /* Кнопка Полного экрана */
-        .fullscreen-btn {
-            position: absolute; bottom: 40px; right: 40px; z-index: 50;
-            background: rgba(0,0,0,0.7); border: 2px solid #444; border-radius: 8px;
-            color: #fff; padding: 15px 20px; font-size: 16px; cursor: pointer;
-            transition: 0.2s; text-transform: uppercase; font-weight: bold;
-        }
-        .fullscreen-btn:hover { background: var(--color-brand-primary); border-color: #fff; }
-
-        .static-noise {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: url('https://raw.githubusercontent.com/IceCreamYou/html5-canvas-static/master/static.gif');
-            opacity: 0; z-index: 25; pointer-events: none; transition: opacity 0.1s;
+            background: #111; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s;
         }
-        .static-noise.active { opacity: 0.4; }
+        #start-screen h1 { color: #e50914; margin-bottom: 30px; font-size: 32px; text-transform: uppercase; text-align: center; }
+        #start-btn { padding: 15px 30px; font-size: 20px; font-weight: bold; background-color: #e50914; color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        #start-btn:active { transform: scale(0.95); }
 
-        @media (max-width: 900px) {
-            .app-container { flex-direction: column-reverse; }
-            .sidebar { width: 100%; height: 35%; border-top: 2px solid var(--color-border-dark); }
-            .tv-screen { height: 65%; width: 100%; }
-            .channel-logo-img { width: 60px; top: 15px; right: 15px; }
-            .osd-container { top: 15px; left: 15px; }
-            .fullscreen-btn { bottom: 15px; right: 15px; padding: 10px 15px; font-size: 14px; }
-            .epg-container { display: none; }
+        /* --- 2. МЕНЮ --- */
+        .sidebar { width: 300px; background-color: #111; display: flex; flex-direction: column; border-right: 2px solid #222; z-index: 50; }
+        .sidebar h2 { padding: 20px; color: #e50914; text-transform: uppercase; border-bottom: 2px solid #222; text-align: center; }
+        .channel-list { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .channel-btn { background-color: #222; color: #aaa; border: none; text-align: left; padding: 15px; font-size: 16px; cursor: pointer; border-radius: 8px; outline: none; }
+        .channel-btn.active, .channel-btn:focus { background-color: #333; color: #fff; font-weight: bold; border-left: 4px solid #e50914; }
+
+        /* --- 3. ТЕЛЕВИЗОР (Этот блок разворачивается на весь экран) --- */
+        .tv-container { flex: 1; position: relative; background-color: #000; display: flex; justify-content: center; align-items: center; }
+        
+        video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; outline: none; z-index: 10; }
+        
+        .channel-logo { position: absolute; top: 20px; right: 20px; width: 70px; opacity: 0.8; z-index: 20; pointer-events: none; }
+        
+        .now-playing { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 5px; font-size: 16px; color: #fff; border-left: 4px solid #e50914; z-index: 20; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+
+        /* Кнопка на весь экран */
+        .fs-btn { position: absolute; bottom: 20px; right: 20px; z-index: 30; background: rgba(0,0,0,0.6); color: #fff; border: 2px solid #555; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; text-transform: uppercase; }
+        .fs-btn:hover { border-color: #fff; background-color: #e50914; }
+
+        /* --- АДАПТАЦИЯ ДЛЯ ТЕЛЕФОНОВ --- */
+        @media (max-width: 800px) {
+            body { flex-direction: column-reverse; }
+            .sidebar { width: 100%; height: 35%; border-right: none; border-top: 2px solid #222; }
+            .sidebar h2 { display: none; }
+            .tv-container { height: 65%; width: 100%; }
+            .channel-logo { width: 50px; top: 10px; right: 10px; }
+            .fs-btn { bottom: 10px; right: 10px; font-size: 12px; padding: 8px 10px; }
+            .now-playing { bottom: 10px; left: 10px; font-size: 14px; }
         }
     </style>
 </head>
 <body>
 
+    <!-- Стартовый экран -->
     <div id="start-screen">
-        <div class="boot-logo">Smart TV OS</div>
-        <button id="start-btn" class="btn-boot">Включить телевизор</button>
+        <h1>Мой Телеканал</h1>
+        <button id="start-btn">Включить телевизор</button>
     </div>
 
-    <div class="app-container">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <h2>КАНАЛЫ</h2>
-                <div class="clock-display" id="nav-clock">00:00</div>
-            </div>
-            
-            <div class="channel-list-container" id="channel-list"></div>
+    <!-- Боковое меню -->
+    <div class="sidebar">
+        <h2>Каналы</h2>
+        <div class="channel-list" id="channel-list"></div>
+    </div>
 
-            <div class="epg-container">
-                <div class="epg-title">Телепрограмма</div>
-                <div class="epg-item now">
-                    <span class="epg-time" id="epg-now-time">--:--</span>
-                    <span class="epg-movie" id="epg-now-title">Загрузка...</span>
-                </div>
-                <div class="epg-item next">
-                    <span class="epg-time" id="epg-next-time">--:--</span>
-                    <span class="epg-movie" id="epg-next-title">Далее...</span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Контейнер, который мы будем разворачивать на весь экран -->
-        <main class="tv-screen" id="tv-screen">
-            <div class="crt-overlay"></div>
-            <div class="static-noise" id="tv-static"></div>
-            
-            <!-- Логотип -->
-            <img src="image.png" class="channel-logo-img" alt="Channel Logo">
-            
-            <!-- OSD Плашка -->
-            <div class="osd-container" id="osd-container">
-                <div class="osd-channel-info">
-                    <div class="osd-ch-number" id="osd-number">CH 01</div>
-                    <div class="osd-ch-name" id="osd-name">Канал</div>
-                    <div class="osd-ch-movie" id="osd-movie">Фильм</div>
-                </div>
-            </div>
-
-            <!-- Плеер -->
-            <video id="tv-player" playsinline preload="auto"></video>
-            
-            <!-- Слой для отслеживания двойного клика -->
-            <div class="click-layer" id="click-layer"></div>
-
-            <!-- Кнопка на весь экран -->
-            <button class="fullscreen-btn" id="fullscreen-btn">[ ] Во весь экран</button>
-        </main>
+    <!-- ТЕЛЕВИЗОР -->
+    <div class="tv-container" id="tv-container">
+        <!-- Логотип -->
+        <img src="image.png" class="channel-logo" alt="Логотип">
+        
+        <!-- Инфо о фильме -->
+        <div class="now-playing" id="now-playing">В эфире: ...</div>
+        
+        <!-- Плеер -->
+        <video id="player" playsinline preload="auto"></video>
+        
+        <!-- Кнопка फुलскрина -->
+        <button class="fs-btn" id="fs-btn">[ ] На весь экран</button>
     </div>
 
     <script>
-        const tvDatabase = {
-            "ch_american": {
-                id: "01", name: "Американское кино",
+        // База данных
+        const tvData = {
+            "american": {
+                name: "Американское кино",
                 items: [
-                    { title: "Гарри Поттер и философский камень", duration_mock: 9120, src: "https://15-10-a2-r401.vkvideo.cloud/1/K3t6pQOvjGkR6BVpwRYsbVw43oRG5VZTU7MZZazkNmFfp_ZQrFyi1ut5DsPvv8_noVcvyIFgXGjGEtJ59eDPT_0TYMUHfBj1Liir-qaZ2XK1rDtcApxqN94Q9UuxVAOg4fOQrkbcCGKGAs29e28WJexc3X7asZrSZQRywNZBRY0hSoku1NRKYD0TbwMS4JzanQVTepToCZ-frk7LmzHcs1qhEQdTnp2PMNKqWjHCSAZ_bs_dZDDj9iBJ3VgcEqF6iLNzALcIsiGS1hPPeDKFTqbcNlC_kZ1CaT77oXPC89EAMDVlth7TdR3VwFMTgzfEWDqmTA2IJF2EbfenuQuNMNOgqy3DQUvpzXw5FGw134NBCLotCyzlP6Pi6dMgCyWoKMJe95U27hXQIhvnYYM9yxt5NP-7xj-1idNOaxdvJyZb3AnOVZUGC5jQvxrNPZZmVlNYsk11BqcAsveu6iOG_PhtbfNSXTb221hr5bLtuxjlfl2opXpDrQQr6koEgRYZS2A164uerOl3RzYpHBhqRGZtlAeNBzOXsTVMp0NPfCNv7VJNzAsFKvOKx5RfClIShDExXMoiyh1wEUUlwAeKJpffP9TCrAbr33rC-mP_z9J5W_cDjdbgkS8K3bHXef8A5S25jAlsZ3pBKK1caQwKpziOi2EiYQLhAZGF2Cgn32wrbEf_EneJjrq9jwjdbcFO1_gEfh0smdNd376huDkQwIZwldpLH2jqcfR_QCivhb51Vj7z7bBgvf_R-QM5ifnn0yXVw_1eckKO9KhAVIyQAGkGLLQMRHumNgzuGLt3d7VA6buUxskCiH2PAnm0DjLQSV01k5DpMPFOfCs5acMm_mGjm9T-BITPv-Ja8RBuVZLGQ30z23Joi3ZG6hXM6j6CHoV-r-wenv0xGWQfy3iRClbV7jghJQslfeP4Piu2UCv8l9VBgEyXJv9lSqmTiAIuJp8lCorxQJeWuayF5fOq8qdJAt0vv0tq_qGQt3OI7KNyBVm3s7fMHybEQNuP7iEHdupnh0CmF2qNDIrYVZIFlzI9CWSUrtX9MLLQPiCKyrMicIc26NcdNs6W22aum1v-189ZfDel8s3z6qN5rrQgrBRxuZ4tRKph1hhFYbVQXFXi-o9nc46cpN4zt313lw4vspdE1Vwqe9XUUlQYpaDk-5Pf9921FogIQBzDMduXKSjPmC2cKjM7NcoB2sULS6qUkaPufYcXuSGVhev_HZ4qzW515AEni0CASW5y5uaEXQEFBC3j573NieuO_zbAGrAgd8O-ljI23dp5YktuNn_4IWfu6cBll8JLlgd57vvB1QMnK-FwK1cpRRK97tLSmp0xs0cahVm1RMiGSy97Ik2lfr01CLKNqdwHy_35gfD882eUojOopFF8AcObEZVwzU8_UdmVhGf4L0K3d-aVS2tUkj0sJvbl8zfYD0aoIUyUow-0dciK8pmek4tnk0VwBFqZPUHCSKjRmldfSkZzWgPaHXN74irJrXIVnXpaKn4e2wIbdU-Yx7RzhnFwC-p4ifUMfGiZPZrF20PN-S-Z01M35B34HncTh31JKQ_aVgLgXHiQCwJVtoCXrYI_L2M9IUZ4K7kmzfn6v6KyCzlx2yeOS5U_D0nCFvD8TAhEgORxX944W0Nlmk9ttH3TYSB5YU58fu6mc7Oor93u5zbleyDXmac9vXkHnLDLum7x1SVFB_kpbbku9aFs5CYTEJ7Xn2u2COypaIET7GWsxHZvK1Bekfd3s41Eg9zW7IUD4z7s2rUdOU0BylryY1lw2supQ_DNocLJChfUxWzcuisHKeYl5puYm_S3JHd-q566m3GM-zmkdCpSHekq86IxN6HV4yoLPpxePgMzj_YFNTWTCnidSPqUFRIJSm0ZU_e3KHz3jTj8QPmLUtIL5JJhgfyVcKWn7Jcn9tN2XMtEBCZj7vbdipaJbr60KDLAyRWh2BNXkvVboMKnBq5A4xkQtzyHHYX2X8Y4KQiylUk83UemJybiXJ1tbRC41p8L4a9r/index-f1-v1-a1.m3u8" },
-                    { title: "Гарри Поттер и тайная комната", duration_mock: 9660, src: "https://15-10-a2-r401.vkvideo.cloud/1/yIIUzCg4IEkj8_-pp5Upbv-nbweSDl8HzAiRgO_kHe8-BODnFj-kw_kAyI6pnID2OW9rpkp5b2TCG0m4XPv-PA2agc7YHZsRiWpugpibzzzjuO1XQociWzznm1Lnn7YH4YxoiW-W2SEk5NfZ2DysUJmas9Azq-CBsXtgBDAXFDVdxsMrR62yKs4WP9HLzSzRitR8u9wHp7hmveF9fi_fmF6139J8INFsgziehHf0iCstVGBkvu4876T_lfMTbuOiuv4bCBNwraVftqhNLAJkf1HKtOBmdv5INWToxkguALR1XkV-cqFZQLeV0hQDmHA6o7ic-8t6Z8UygUNfeZiuA5-07k6zW5p3kot4s9u8QpiG0YsZR3Fu3ABjsu1AS7EzNfJvQDAZn68gUuQEzS5qARClY2c7qiuVondbBBZr-6nWawCZhMSzGP-d8thri6hp3oZmd5llVDZT3k449IVu9XzpAmg2YN7XyGK-VIiEElUAHbVDFn9Eavznx6m-okOU3eUoiuEEeMGQmKwOdlGaTLi6nRdciFuZWtNc2vLNRUqOxwjy62EndwpTAINGcMJOdWzb3FuD3p0ydNdNZBBBibQ0vXuk-RnidGbv2fSUznKCNareB-NNYD9_yCCsO14Kaq4YRQqPKMpt-J0xptH8vTbTaMZnN1BylnBNmAsYpjF_jyyUtjXwDxhYo0WNGYvIxyGRvTSAZhKKdUqDEmz61JV89Nlb7ZNbjYRHEcG8mAGUBW-Mpo39_A5Yxdc0arb8HqSKtShYgvbaf_VWFGr6OrTLdZOUIV6p9EInWdwhJUhAVOq9jjVPhDf7bM9uLztfffESPbLg7o4bD3O1GJWnrZoXj_PBJufldpwWi-Kftplsx3fnjWKsejd89Y5oqSwJMNPFxIv2NJpMK4h8Aw8CT3FzK78B-cOx--p6WGmB5PcXlExQ2SpsKF0BszNIOIWLqzErM_AP21Y8uyBbDHw2IoVQ7KnWcwgB8SUvHYtqbPP_XA7VITUs8sK6HuG7YRYJ9vY5IXAmJGy3Ff7KtxzlgeMVF8T3u9z1n5II1byzF8thLJezmhYj_-2LQqrpLZPO9MoJsgq1sYllHrLmAjSHivpfO3MeraeKp5hALiTXjl-L0jnr1dSylMI4XPklb-ern14aPpGd83NAsHEs1QRD0JLfcmcCd2pPuC_kAbynzQKEQgesZS4-CgnG5R6_vLHgXpXSDhVV-0xarhB47dLSvdgKTgn6VhIVNwRkoH3VEb0CoKPt7VqPWdP5gDVt3PUjGXV5G0Rd08mBBcPMPo8JJUkjW1K-uci0AP4E2AcTTLta1NJlxycE8gi-Oj7i4gALJR8TbhRqqO1MZ3qvUE-0_pzHqJSbTZN_2YUOho7Eprlc-hyEQ2xfE18zfuG8G8uakFqUPrb6-46m2Ak1LDmLUzSo6U42ZKPg0Wx0WibDq5SdcxkqYoyJE_8dSpeg44KQWYe1YFgb1rYLWn6zle7aZkVperj1GKSWWCliRvHZE0qTAITDkbDH3gb_sZu2HjtRscKpHMyj1ymiWH7Qn_cPIHQMlqVaRWckseW5x6uyTPY_5M9hZIWKRltKQSSqNt_EuoExBkGiHNAHpbdsXoTooQI4BdM500jTcHVn-qs3m8GK2nlR0wSUtoJxRFR-X2vzzfG-lxmWG7STrF_AlkqB-c2CUnxqsnKAlFs6w5708pon2Re8GBWGo5d4WkHYtcdELXxfwb3W92S-KdcVv2BW0KMWyVi_jx9B1rV0V67MG5py2A9YsVDRQA0gjY4Ejbn6MmeBuhSWYiQZFN7uaAPVtfrPxmRs_uUnLwvIdDL-k5d1dBUy_Ury6TiivZ874tg3MGACeSzUsyRxc6ynJ4NgoWM4l4JALOOz69xPaTQK1S0nfKVCEoVpkH8S1NNhqoPWN62XE6jCiXlHsy_81PslacLArpwjFymW6lAt0Xp5jQ6YWYTKZsoNiLIdqk7MPSrpFGbcnT83iL9o2cFEXCA9gSZTwNqRqlZuUuh_/index-f1-v1-a1.m3u8" },
-                    { title: "Гарри Поттер и узник Азкабана", duration_mock: 8520, src: "https://4c-2f-63-r505.vkvideo.cloud/1/dijR9FHGrShb5bjaSDDNwnul7SlsiU63hs89HtoQmk27eUpixDYbzlBuarTaqfCdy11cGVbkaSuNsNp8_Tqo0nssYdE8WF9fJpZJ01eqdlz11inxizd-XOYGfhT3Gcti4wGtsZFklWp2bhszBXqe8W6iFmSTA0E14kneHrnYXm6CRQuoAsat3uaiQVA874d217D5sNz0_FGZjWvJr3V4Uu53dUuhy4us2TXQ9ksYKIhuyFpODt99ngY_1E5Gq3cjmy1kYb1fZ2Sde0dRfxHJA_Ya9CKaP_aO8ayQ0mYzWutWkTppcbJuMoRc2N7C1hfbSAh2voTUKuK38HR6HeIUaQ6EVTcEZ3gPyUj07miAiLOFqzdkB_Q0yFK6IpDByO9oPgFAdRjZlJC6okfOKdQKCiKsKtswkJxgy1fYMHO2imyDkmYqqI-wyuRKpsiXUgw4Ah1gLAQyVymBSoOnnR0mhmEYXM_fqJIgOsqfMhU_d9ZA6FzEma8BIE9YKfCByqFyYKX9IT5SdUv9pKFA51nDEjES7Z2gG4hmQZhX9nBWenbW3XzTpadyIyx1-juIuDLRZdtTvq9bRNSNgi2Dftw_I18i7H4foJYnjT1XdijY7jFkdPZv1ppvRcaYutxmCJVcFHAGuoKp5F4bWGrOXhy_SQ9wpdJdrsXj131-G5FUiw3mnwfEpIkK3-JpFFYaammP9kluKgw9yELdssd3h_KuIO1vv1Q7gHCjEv0OMlsbVyKMY75gdVy9mt8C3xAZHlR413l8L2mNoCRpQUCPkTxCXz2RWQ9-V6o55ZWrxMz8oxGpNTNLdOgDPIQ0eOYUBNE30OBypXXy3OB0jBCpyaS-4VAlyEc0EXLk4VnX482ahKTU2a78MJi1FLzoHPal5CsViN9ECDvjqWUHDSD2G1LtNqAFnbNb0WPpyWqG1U-D9wRdIJ9shSgZUlRX89nxt6cLrTlT9Ceg_wUjE6K4HySavnOGqU1SDw6DJC8jRHabDRkD0K-G7g-Au8krcLfGsKHodnyfwpsXMCBCIe5GNvcgy40ciVkC9NFteGFkdKvY3PzAH0bh8VrvXvRgHaiMxGRpFC5rh8ldbhPIgIwlaDgJkzS6dumKs00Jzld7f4qN1D7eKlk8A9PwLgvec7Vmy7ZRAeSkQKQVHf_u5UHKW75laYfiI-4-NllleRdyNcZrjksVqd2uWEoWPSAIxJakj6st7Z7eLJPdlcM6y9k0b6jknuvPaNVy6zQC54vs7uXaVEnfCeXZVFe1FxFFcYaZiP5OEdavhqK3x1WYlzJcCp6VKizbQatGgxQGCWvt_rMIhXYc3lEsBr3RqBnfCm10ilIGiwOwxYYI_9j6ImGX9Ci6kt396xPl6hQAV8P2iZooEYTSanu7WTpWo3wfE4s-07iM86-4FEPLwPYYjtGHNw6Qspvv9yGsa2uROq0r7RhM2Yp7Cvg1mL4eOwXVkJJsXuSUF9jpdULnhPi9q-KhgwIT68Vqis5SpBcLcEpBUov8qKLVvGMHm1kyZmmb5FJUfrtcDsB6t-8sl66LPOOqEBjJ7-YVcW0Hi0yLnIASnBhsshoV6GYYKVkUMV0-kCzcG5tBtE7gxVyMfpGzkr0aP4SFsRrq38RBqnQX3P4gkFNmsNEbUfRJgsdEoSCGFXYlBdBPCqAtOLqJlThjCuuvauPIlshOU_IwnWGvq7tLQ52txtUyFW0Sa0Mp9sZoTlTPaY2s5QAwjNBqd7N3s8ikj4wiHffDvRaFNb9X_s3JFMHgX1pQBKglnASOloMb-u98g831z64Y0P8AVyrQ_lD35bJ0acgJyX-XG5nlusLcrYOCSfUp00Q9a0vRQMiMDcK20_7ogxsCuo7Vycg3rtjP4Hbr39V4YYkrKk8rtm1hlRwm9m9a8ylDtyo606GLjY25AAci6564Hms4DkNGl9n-_McIC4kDnZUrqq9QDaweDWOlgGdRB0Vi_mWq5d926UwjUoRvKfTuh_W9VlMdNapTP8H_8IjJu8HEb4M0IQ_1FLXTz9_jdCc/index-f1-v1-a1.m3u8" },
-                    { title: "Гарри Поттер и Кубок огня", duration_mock: 9420, src: "https://97-65-e1-r502.vkvideo.cloud/1/3TzXb2u150RREUPt_-Cz6K0bhhZSbXqIjOTz41AUh8UW6GInkSF4Djy-12jEImmSA6gc8WcaQiXuwRMSP-qr0H8u4bQretfhPSfIkmeSfIioLiQIghl7M4iU75qtYLk3WMk1-vP1Dsy3mT5pa2wR6Ek1OOC5yYMUCJkDRDMwghzLbvp_zs4VIarEj6rRBMCpilvGe94n8SsSEOCxq92yDCyPwFgckYEXZtc2cYdqTgMHpgfm1VCgAYGuy_snNlsX2lgIHcCWTQQUTb2yK6Fo8cNeaQo01fXdTckD0jrxdgCYqeORWt_sne_Yj-wSfdcHN7prq7fF2leA6hXsLaEUQ_fGT5D8WJjBv1QnjCYRN5JKZmC1hlW_cVEDG2hzgm8I-KJCLmMcANkjO4UVqTqAt_HvghgLi3YY_BDe7nQDdvXb712GXJC2C8m71f3pZIsqpXX8P8NUgXdpUxisSCqUiJs_g32VCg6Knxrus9IzDtTnR7nBuDtErEnwZvMmaXaojlUfYFVLf0ga3p5wMUWkJuMtPZ2AJXTD0uYzljkz-sg5FtUc7vPJFuN-BG-C1ZV4irSSCfnNUBCMOxxEhjhMXp5VS3pPZDBLzWfdg0AJE9-kXbPgR0KPx-5VCMt2d3Y6lO4ilk3_MHwPwrkBiqn--8cv-NH4BwP9s-tflFnvb_Ucgi5tDPi5KyfHUzoWv00nVsZf2IZUX2-N3ELhqAJ4Z2NI-bPTzBS6Hzyfkk5ZxVNsHPE7FIiusdUp-fR6meT5J568SjlPlTcqsNdH2u-YNyXRN8sVEeId9gVTlCVgLWzGx_nNK1bhSzo11M0WWuOS--LAIXsZLprBGyWX8VyaNvO2p7UU1LjPYwUApaycKm0y3dTjAF0iEYfSVtENR_3ptjMzq7_ZKuEx1Fgl-ViCkJOOMfEKvbNsbIjSoP46OOSBucdvpLOb1DyaZj5oGQy_qkj-AtRu5JKImHtiyiFCnof7R25UoQq7XZWMBxmJ9rHi1jJ69frjjJxL2VPMFhX3XOdsZklxIEWiBZFJoPbHJKPjd3RaUZk9zslbL0piJkdmIf47P7FKPZRlmbhXRO2E8NhW6elmH8OySoaquOr3WKF8ZXso7WLyIVzfaBvt3xTRJOtpkZsTV8DyrYHXQ4UU6SyFAg7YAJvSGv78txIiArWGmGTABc3lDKyk23X4TiDHkd5d8Rd3lv5ybL3idTFG2Pihsvl_xp1rA8V-yVnwu00KhjFyWhujupzBthhUNR0cD-NzMlxZzdXWZE7CQ54Fc8o_rZ7O6tMFJReZUSFCYMqbErRGKV207FIow2Rg9WR19d9BMwuuP0wQPKozSQrhlS4dIzTQA9PP1pEvbcCMq99sarYAOLE2gvckr5Zhyy7PovWA4SfE37ZY1MK1d79rSLstCNyszG4yvV0Dgv-WX_itarcmGwdx0TRCPSWP9dy4oNKJNilkTXUV4NpM5-EUKQBR_6_nA4_2w1w0WplH3a2ngVnq7igGg7ioRQgh6tgM7ugnNOcFqkjsoYwFQsRZkpTOHHP1GLsFtBWfb9zzHzj_jfz4rTyIlfFnsDOjFxaleOxQ_D5Dm99RJZLvD8KKFXaInie6IZLO8-EZ_g49ZbIXmLo2clelM_hOcaUPDV3WgqOnWm5Cc3Etldw0Tv16SQVVwtfNmZY9uY20JPLK5UX1D9QtEIuPnnSFS5jFiLDeCRWoYsF3t6Lf3kujF9eIGsYeawYGRz9XFOBuuHGPLdLLrZCYMHzoGC-1mGkwyjZOPFBz0b87JgUyiJX1ZPX0B6oceB0JYKrBZ26nLyRBy8-oQN3Th55WIVbmsGJJQNXdf6t-PeYxopuiTVGOUmrFaHZfRa6RxoqX9DlbM48WNtEVrgvIuoUoJFB_9qLvZ3KcClaJoL8xT4hnEB7lsDjunCdK0YQtp0gEUCkkC1WZPS9p9q3Gf08Whi4OSlnLccjFCwvt3cKyL6PDNnd-XdE7DIXEjrkHFK7bUJZ1pZSo2Ku5Rq37OAXM97dW-C97TfIOWp8/index-f1-v1-a1.m3u8" },
-                    { title: "Механик", duration_mock: 5580, src: "https://cdnr.interkh.com/x-en-x/khw3kBQcYa8cFX8akp8xka8cRp9tnvysbhKObC8xRvqxkvw0Yr1cSh9rz2I6Rv1wFhZpzGD4FmbcRibxRiLrHiE9kBz5kBRckBSZRvZZz2AGOrZvjBb5kBlpkrR5zmzxzvepknSfHB1ZSvb5RhL0SrsrkByrRibrHtA9SizcShSpFiSwzrRakGz1OrZ1jmA0ShyvFBbaSmb5FBAGFnSfKmw9RrkvFmOvRvQxkBXwSrR4OoA9RBq5RvE1RBAaknz2SiSvFmsvSA==" }
+                    { title: "Гарри Поттер и философский камень", src: "https://15-10-a2-r401.vkvideo.cloud/1/K3t6pQOvjGkR6BVpwRYsbVw43oRG5VZTU7MZZazkNmFfp_ZQrFyi1ut5DsPvv8_noVcvyIFgXGjGEtJ59eDPT_0TYMUHfBj1Liir-qaZ2XK1rDtcApxqN94Q9UuxVAOg4fOQrkbcCGKGAs29e28WJexc3X7asZrSZQRywNZBRY0hSoku1NRKYD0TbwMS4JzanQVTepToCZ-frk7LmzHcs1qhEQdTnp2PMNKqWjHCSAZ_bs_dZDDj9iBJ3VgcEqF6iLNzALcIsiGS1hPPeDKFTqbcNlC_kZ1CaT77oXPC89EAMDVlth7TdR3VwFMTgzfEWDqmTA2IJF2EbfenuQuNMNOgqy3DQUvpzXw5FGw134NBCLotCyzlP6Pi6dMgCyWoKMJe95U27hXQIhvnYYM9yxt5NP-7xj-1idNOaxdvJyZb3AnOVZUGC5jQvxrNPZZmVlNYsk11BqcAsveu6iOG_PhtbfNSXTb221hr5bLtuxjlfl2opXpDrQQr6koEgRYZS2A164uerOl3RzYpHBhqRGZtlAeNBzOXsTVMp0NPfCNv7VJNzAsFKvOKx5RfClIShDExXMoiyh1wEUUlwAeKJpffP9TCrAbr33rC-mP_z9J5W_cDjdbgkS8K3bHXef8A5S25jAlsZ3pBKK1caQwKpziOi2EiYQLhAZGF2Cgn32wrbEf_EneJjrq9jwjdbcFO1_gEfh0smdNd376huDkQwIZwldpLH2jqcfR_QCivhb51Vj7z7bBgvf_R-QM5ifnn0yXVw_1eckKO9KhAVIyQAGkGLLQMRHumNgzuGLt3d7VA6buUxskCiH2PAnm0DjLQSV01k5DpMPFOfCs5acMm_mGjm9T-BITPv-Ja8RBuVZLGQ30z23Joi3ZG6hXM6j6CHoV-r-wenv0xGWQfy3iRClbV7jghJQslfeP4Piu2UCv8l9VBgEyXJv9lSqmTiAIuJp8lCorxQJeWuayF5fOq8qdJAt0vv0tq_qGQt3OI7KNyBVm3s7fMHybEQNuP7iEHdupnh0CmF2qNDIrYVZIFlzI9CWSUrtX9MLLQPiCKyrMicIc26NcdNs6W22aum1v-189ZfDel8s3z6qN5rrQgrBRxuZ4tRKph1hhFYbVQXFXi-o9nc46cpN4zt313lw4vspdE1Vwqe9XUUlQYpaDk-5Pf9921FogIQBzDMduXKSjPmC2cKjM7NcoB2sULS6qUkaPufYcXuSGVhev_HZ4qzW515AEni0CASW5y5uaEXQEFBC3j573NieuO_zbAGrAgd8O-ljI23dp5YktuNn_4IWfu6cBll8JLlgd57vvB1QMnK-FwK1cpRRK97tLSmp0xs0cahVm1RMiGSy97Ik2lfr01CLKNqdwHy_35gfD882eUojOopFF8AcObEZVwzU8_UdmVhGf4L0K3d-aVS2tUkj0sJvbl8zfYD0aoIUyUow-0dciK8pmek4tnk0VwBFqZPUHCSKjRmldfSkZzWgPaHXN74irJrXIVnXpaKn4e2wIbdU-Yx7RzhnFwC-p4ifUMfGiZPZrF20PN-S-Z01M35B34HncTh31JKQ_aVgLgXHiQCwJVtoCXrYI_L2M9IUZ4K7kmzfn6v6KyCzlx2yeOS5U_D0nCFvD8TAhEgORxX944W0Nlmk9ttH3TYSB5YU58fu6mc7Oor93u5zbleyDXmac9vXkHnLDLum7x1SVFB_kpbbku9aFs5CYTEJ7Xn2u2COypaIET7GWsxHZvK1Bekfd3s41Eg9zW7IUD4z7s2rUdOU0BylryY1lw2supQ_DNocLJChfUxWzcuisHKeYl5puYm_S3JHd-q566m3GM-zmkdCpSHekq86IxN6HV4yoLPpxePgMzj_YFNTWTCnidSPqUFRIJSm0ZU_e3KHz3jTj8QPmLUtIL5JJhgfyVcKWn7Jcn9tN2XMtEBCZj7vbdipaJbr60KDLAyRWh2BNXkvVboMKnBq5A4xkQtzyHHYX2X8Y4KQiylUk83UemJybiXJ1tbRC41p8L4a9r/index-f1-v1-a1.m3u8" },
+                    { title: "Гарри Поттер и тайная комната", src: "https://15-10-a2-r401.vkvideo.cloud/1/yIIUzCg4IEkj8_-pp5Upbv-nbweSDl8HzAiRgO_kHe8-BODnFj-kw_kAyI6pnID2OW9rpkp5b2TCG0m4XPv-PA2agc7YHZsRiWpugpibzzzjuO1XQociWzznm1Lnn7YH4YxoiW-W2SEk5NfZ2DysUJmas9Azq-CBsXtgBDAXFDVdxsMrR62yKs4WP9HLzSzRitR8u9wHp7hmveF9fi_fmF6139J8INFsgziehHf0iCstVGBkvu4876T_lfMTbuOiuv4bCBNwraVftqhNLAJkf1HKtOBmdv5INWToxkguALR1XkV-cqFZQLeV0hQDmHA6o7ic-8t6Z8UygUNfeZiuA5-07k6zW5p3kot4s9u8QpiG0YsZR3Fu3ABjsu1AS7EzNfJvQDAZn68gUuQEzS5qARClY2c7qiuVondbBBZr-6nWawCZhMSzGP-d8thri6hp3oZmd5llVDZT3k449IVu9XzpAmg2YN7XyGK-VIiEElUAHbVDFn9Eavznx6m-okOU3eUoiuEEeMGQmKwOdlGaTLi6nRdciFuZWtNc2vLNRUqOxwjy62EndwpTAINGcMJOdWzb3FuD3p0ydNdNZBBBibQ0vXuk-RnidGbv2fSUznKCNareB-NNYD9_yCCsO14Kaq4YRQqPKMpt-J0xptH8vTbTaMZnN1BylnBNmAsYpjF_jyyUtjXwDxhYo0WNGYvIxyGRvTSAZhKKdUqDEmz61JV89Nlb7ZNbjYRHEcG8mAGUBW-Mpo39_A5Yxdc0arb8HqSKtShYgvbaf_VWFGr6OrTLdZOUIV6p9EInWdwhJUhAVOq9jjVPhDf7bM9uLztfffESPbLg7o4bD3O1GJWnrZoXj_PBJufldpwWi-Kftplsx3fnjWKsejd89Y5oqSwJMNPFxIv2NJpMK4h8Aw8CT3FzK78B-cOx--p6WGmB5PcXlExQ2SpsKF0BszNIOIWLqzErM_AP21Y8uyBbDHw2IoVQ7KnWcwgB8SUvHYtqbPP_XA7VITUs8sK6HuG7YRYJ9vY5IXAmJGy3Ff7KtxzlgeMVF8T3u9z1n5II1byzF8thLJezmhYj_-2LQqrpLZPO9MoJsgq1sYllHrLmAjSHivpfO3MeraeKp5hALiTXjl-L0jnr1dSylMI4XPklb-ern14aPpGd83NAsHEs1QRD0JLfcmcCd2pPuC_kAbynzQKEQgesZS4-CgnG5R6_vLHgXpXSDhVV-0xarhB47dLSvdgKTgn6VhIVNwRkoH3VEb0CoKPt7VqPWdP5gDVt3PUjGXV5G0Rd08mBBcPMPo8JJUkjW1K-uci0AP4E2AcTTLta1NJlxycE8gi-Oj7i4gALJR8TbhRqqO1MZ3qvUE-0_pzHqJSbTZN_2YUOho7Eprlc-hyEQ2xfE18zfuG8G8uakFqUPrb6-46m2Ak1LDmLUzSo6U42ZKPg0Wx0WibDq5SdcxkqYoyJE_8dSpeg44KQWYe1YFgb1rYLWn6zle7aZkVperj1GKSWWCliRvHZE0qTAITDkbDH3gb_sZu2HjtRscKpHMyj1ymiWH7Qn_cPIHQMlqVaRWckseW5x6uyTPY_5M9hZIWKRltKQSSqNt_EuoExBkGiHNAHpbdsXoTooQI4BdM500jTcHVn-qs3m8GK2nlR0wSUtoJxRFR-X2vzzfG-lxmWG7STrF_AlkqB-c2CUnxqsnKAlFs6w5708pon2Re8GBWGo5d4WkHYtcdELXxfwb3W92S-KdcVv2BW0KMWyVi_jx9B1rV0V67MG5py2A9YsVDRQA0gjY4Ejbn6MmeBuhSWYiQZFN7uaAPVtfrPxmRs_uUnLwvIdDL-k5d1dBUy_Ury6TiivZ874tg3MGACeSzUsyRxc6ynJ4NgoWM4l4JALOOz69xPaTQK1S0nfKVCEoVpkH8S1NNhqoPWN62XE6jCiXlHsy_81PslacLArpwjFymW6lAt0Xp5jQ6YWYTKZsoNiLIdqk7MPSrpFGbcnT83iL9o2cFEXCA9gSZTwNqRqlZuUuh_/index-f1-v1-a1.m3u8" },
+                    { title: "Гарри Поттер и узник Азкабана", src: "https://4c-2f-63-r505.vkvideo.cloud/1/dijR9FHGrShb5bjaSDDNwnul7SlsiU63hs89HtoQmk27eUpixDYbzlBuarTaqfCdy11cGVbkaSuNsNp8_Tqo0nssYdE8WF9fJpZJ01eqdlz11inxizd-XOYGfhT3Gcti4wGtsZFklWp2bhszBXqe8W6iFmSTA0E14kneHrnYXm6CRQuoAsat3uaiQVA874d217D5sNz0_FGZjWvJr3V4Uu53dUuhy4us2TXQ9ksYKIhuyFpODt99ngY_1E5Gq3cjmy1kYb1fZ2Sde0dRfxHJA_Ya9CKaP_aO8ayQ0mYzWutWkTppcbJuMoRc2N7C1hfbSAh2voTUKuK38HR6HeIUaQ6EVTcEZ3gPyUj07miAiLOFqzdkB_Q0yFK6IpDByO9oPgFAdRjZlJC6okfOKdQKCiKsKtswkJxgy1fYMHO2imyDkmYqqI-wyuRKpsiXUgw4Ah1gLAQyVymBSoOnnR0mhmEYXM_fqJIgOsqfMhU_d9ZA6FzEma8BIE9YKfCByqFyYKX9IT5SdUv9pKFA51nDEjES7Z2gG4hmQZhX9nBWenbW3XzTpadyIyx1-juIuDLRZdtTvq9bRNSNgi2Dftw_I18i7H4foJYnjT1XdijY7jFkdPZv1ppvRcaYutxmCJVcFHAGuoKp5F4bWGrOXhy_SQ9wpdJdrsXj131-G5FUiw3mnwfEpIkK3-JpFFYaammP9kluKgw9yELdssd3h_KuIO1vv1Q7gHCjEv0OMlsbVyKMY75gdVy9mt8C3xAZHlR413l8L2mNoCRpQUCPkTxCXz2RWQ9-V6o55ZWrxMz8oxGpNTNLdOgDPIQ0eOYUBNE30OBypXXy3OB0jBCpyaS-4VAlyEc0EXLk4VnX482ahKTU2a78MJi1FLzoHPal5CsViN9ECDvjqWUHDSD2G1LtNqAFnbNb0WPpyWqG1U-D9wRdIJ9shSgZUlRX89nxt6cLrTlT9Ceg_wUjE6K4HySavnOGqU1SDw6DJC8jRHabDRkD0K-G7g-Au8krcLfGsKHodnyfwpsXMCBCIe5GNvcgy40ciVkC9NFteGFkdKvY3PzAH0bh8VrvXvRgHaiMxGRpFC5rh8ldbhPIgIwlaDgJkzS6dumKs00Jzld7f4qN1D7eKlk8A9PwLgvec7Vmy7ZRAeSkQKQVHf_u5UHKW75laYfiI-4-NllleRdyNcZrjksVqd2uWEoWPSAIxJakj6st7Z7eLJPdlcM6y9k0b6jknuvPaNVy6zQC54vs7uXaVEnfCeXZVFe1FxFFcYaZiP5OEdavhqK3x1WYlzJcCp6VKizbQatGgxQGCWvt_rMIhXYc3lEsBr3RqBnfCm10ilIGiwOwxYYI_9j6ImGX9Ci6kt396xPl6hQAV8P2iZooEYTSanu7WTpWo3wfE4s-07iM86-4FEPLwPYYjtGHNw6Qspvv9yGsa2uROq0r7RhM2Yp7Cvg1mL4eOwXVkJJsXuSUF9jpdULnhPi9q-KhgwIT68Vqis5SpBcLcEpBUov8qKLVvGMHm1kyZmmb5FJUfrtcDsB6t-8sl66LPOOqEBjJ7-YVcW0Hi0yLnIASnBhsshoV6GYYKVkUMV0-kCzcG5tBtE7gxVyMfpGzkr0aP4SFsRrq38RBqnQX3P4gkFNmsNEbUfRJgsdEoSCGFXYlBdBPCqAtOLqJlThjCuuvauPIlshOU_IwnWGvq7tLQ52txtUyFW0Sa0Mp9sZoTlTPaY2s5QAwjNBqd7N3s8ikj4wiHffDvRaFNb9X_s3JFMHgX1pQBKglnASOloMb-u98g831z64Y0P8AVyrQ_lD35bJ0acgJyX-XG5nlusLcrYOCSfUp00Q9a0vRQMiMDcK20_7ogxsCuo7Vycg3rtjP4Hbr39V4YYkrKk8rtm1hlRwm9m9a8ylDtyo606GLjY25AAci6564Hms4DkNGl9n-_McIC4kDnZUrqq9QDaweDWOlgGdRB0Vi_mWq5d926UwjUoRvKfTuh_W9VlMdNapTP8H_8IjJu8HEb4M0IQ_1FLXTz9_jdCc/index-f1-v1-a1.m3u8" },
+                    { title: "Гарри Поттер и Кубок огня", src: "https://97-65-e1-r502.vkvideo.cloud/1/3TzXb2u150RREUPt_-Cz6K0bhhZSbXqIjOTz41AUh8UW6GInkSF4Djy-12jEImmSA6gc8WcaQiXuwRMSP-qr0H8u4bQretfhPSfIkmeSfIioLiQIghl7M4iU75qtYLk3WMk1-vP1Dsy3mT5pa2wR6Ek1OOC5yYMUCJkDRDMwghzLbvp_zs4VIarEj6rRBMCpilvGe94n8SsSEOCxq92yDCyPwFgckYEXZtc2cYdqTgMHpgfm1VCgAYGuy_snNlsX2lgIHcCWTQQUTb2yK6Fo8cNeaQo01fXdTckD0jrxdgCYqeORWt_sne_Yj-wSfdcHN7prq7fF2leA6hXsLaEUQ_fGT5D8WJjBv1QnjCYRN5JKZmC1hlW_cVEDG2hzgm8I-KJCLmMcANkjO4UVqTqAt_HvghgLi3YY_BDe7nQDdvXb712GXJC2C8m71f3pZIsqpXX8P8NUgXdpUxisSCqUiJs_g32VCg6Knxrus9IzDtTnR7nBuDtErEnwZvMmaXaojlUfYFVLf0ga3p5wMUWkJuMtPZ2AJXTD0uYzljkz-sg5FtUc7vPJFuN-BG-C1ZV4irSSCfnNUBCMOxxEhjhMXp5VS3pPZDBLzWfdg0AJE9-kXbPgR0KPx-5VCMt2d3Y6lO4ilk3_MHwPwrkBiqn--8cv-NH4BwP9s-tflFnvb_Ucgi5tDPi5KyfHUzoWv00nVsZf2IZUX2-N3ELhqAJ4Z2NI-bPTzBS6Hzyfkk5ZxVNsHPE7FIiusdUp-fR6meT5J568SjlPlTcqsNdH2u-YNyXRN8sVEeId9gVTlCVgLWzGx_nNK1bhSzo11M0WWuOS--LAIXsZLprBGyWX8VyaNvO2p7UU1LjPYwUApaycKm0y3dTjAF0iEYfSVtENR_3ptjMzq7_ZKuEx1Fgl-ViCkJOOMfEKvbNsbIjSoP46OOSBucdvpLOb1DyaZj5oGQy_qkj-AtRu5JKImHtiyiFCnof7R25UoQq7XZWMBxmJ9rHi1jJ69frjjJxL2VPMFhX3XOdsZklxIEWiBZFJoPbHJKPjd3RaUZk9zslbL0piJkdmIf47P7FKPZRlmbhXRO2E8NhW6elmH8OySoaquOr3WKF8ZXso7WLyIVzfaBvt3xTRJOtpkZsTV8DyrYHXQ4UU6SyFAg7YAJvSGv78txIiArWGmGTABc3lDKyk23X4TiDHkd5d8Rd3lv5ybL3idTFG2Pihsvl_xp1rA8V-yVnwu00KhjFyWhujupzBthhUNR0cD-NzMlxZzdXWZE7CQ54Fc8o_rZ7O6tMFJReZUSFCYMqbErRGKV207FIow2Rg9WR19d9BMwuuP0wQPKozSQrhlS4dIzTQA9PP1pEvbcCMq99sarYAOLE2gvckr5Zhyy7PovWA4SfE37ZY1MK1d79rSLstCNyszG4yvV0Dgv-WX_itarcmGwdx0TRCPSWP9dy4oNKJNilkTXUV4NpM5-EUKQBR_6_nA4_2w1w0WplH3a2ngVnq7igGg7ioRQgh6tgM7ugnNOcFqkjsoYwFQsRZkpTOHHP1GLsFtBWfb9zzHzj_jfz4rTyIlfFnsDOjFxaleOxQ_D5Dm99RJZLvD8KKFXaInie6IZLO8-EZ_g49ZbIXmLo2clelM_hOcaUPDV3WgqOnWm5Cc3Etldw0Tv16SQVVwtfNmZY9uY20JPLK5UX1D9QtEIuPnnSFS5jFiLDeCRWoYsF3t6Lf3kujF9eIGsYeawYGRz9XFOBuuHGPLdLLrZCYMHzoGC-1mGkwyjZOPFBz0b87JgUyiJX1ZPX0B6oceB0JYKrBZ26nLyRBy8-oQN3Th55WIVbmsGJJQNXdf6t-PeYxopuiTVGOUmrFaHZfRa6RxoqX9DlbM48WNtEVrgvIuoUoJFB_9qLvZ3KcClaJoL8xT4hnEB7lsDjunCdK0YQtp0gEUCkkC1WZPS9p9q3Gf08Whi4OSlnLccjFCwvt3cKyL6PDNnd-XdE7DIXEjrkHFK7bUJZ1pZSo2Ku5Rq37OAXM97dW-C97TfIOWp8/index-f1-v1-a1.m3u8" },
+                    { title: "Механик", src: "https://cdnr.interkh.com/x-en-x/khw3kBQcYa8cFX8akp8xka8cRp9tnvysbhKObC8xRvqxkvw0Yr1cSh9rz2I6Rv1wFhZpzGD4FmbcRibxRiLrHiE9kBz5kBRckBSZRvZZz2AGOrZvjBb5kBlpkrR5zmzxzvepknSfHB1ZSvb5RhL0SrsrkByrRibrHtA9SizcShSpFiSwzrRakGz1OrZ1jmA0ShyvFBbaSmb5FBAGFnSfKmw9RrkvFmOvRvQxkBXwSrR4OoA9RBq5RvE1RBAaknz2SiSvFmsvSA==" }
                 ]
             },
-            "ch_comedy": {
-                id: "02", name: "Комедии",
+            "comedy": {
+                name: "Комедии",
                 items: [
-                    { title: "Гитлер капут", duration_mock: 5940, src: "https://cdnr.interkh.com/03_05_19/03/05/16/bbtPAWK0/1080_uJcKFb3s.mp4/index-v1.m3u8?fckz2=79126d64e46cea4&ha=56953056a28acd3&hi=af59024fdf55f0e&ht=76c4b9e2e9dbd35&hu=d4d5c952ee99439&hui=18432c943847690&t=1792151109&rt=33f6f5298bc62204c3c810101504a89829b91f6446d341018f9fab2227889f9e&hc=5950b6c9af1b9b5&6dfc9dce&x-cdn=10551403" }
+                    { title: "Гитлер капут", src: "https://cdnr.interkh.com/03_05_19/03/05/16/bbtPAWK0/1080_uJcKFb3s.mp4/index-v1.m3u8?fckz2=79126d64e46cea4&ha=56953056a28acd3&hi=af59024fdf55f0e&ht=76c4b9e2e9dbd35&hu=d4d5c952ee99439&hui=18432c943847690&t=1792151109&rt=33f6f5298bc62204c3c810101504a89829b91f6446d341018f9fab2227889f9e&hc=5950b6c9af1b9b5&6dfc9dce&x-cdn=10551403" }
                 ]
             }
         };
 
-        const dom = {
-            player: document.getElementById('tv-player'),
-            channelList: document.getElementById('channel-list'),
-            startScreen: document.getElementById('start-screen'),
-            startBtn: document.getElementById('start-btn'),
-            tvStatic: document.getElementById('tv-static'),
-            osdContainer: document.getElementById('osd-container'),
-            osdNumber: document.getElementById('osd-number'),
-            osdName: document.getElementById('osd-name'),
-            osdMovie: document.getElementById('osd-movie'),
-            epgNowTime: document.getElementById('epg-now-time'),
-            epgNowTitle: document.getElementById('epg-now-title'),
-            epgNextTime: document.getElementById('epg-next-time'),
-            epgNextTitle: document.getElementById('epg-next-title'),
-            tvScreen: document.getElementById('tv-screen'), // Сам контейнер для полного экрана
-            fullscreenBtn: document.getElementById('fullscreen-btn'),
-            clickLayer: document.getElementById('click-layer')
-        };
-
-        let currentChannelKey = 'ch_american';
+        const player = document.getElementById('player');
+        const channelList = document.getElementById('channel-list');
+        const nowPlaying = document.getElementById('now-playing');
+        const tvContainer = document.getElementById('tv-container'); // Наш контейнер для полного экрана
+        const fsBtn = document.getElementById('fs-btn');
+        let currentChannelKey = 'american';
         let hlsInstance = null;
-        let osdTimeout = null;
-        let stateSaverInterval = null;
+        let titleTimeout = null;
 
-        function buildChannelMenu() {
-            dom.channelList.innerHTML = '';
-            for (const key in tvDatabase) {
-                const btn = document.createElement('button');
-                btn.className = 'channel-btn';
-                btn.id = 'btn-' + key;
-                btn.innerHTML = `<span class="channel-number">CH ${tvDatabase[key].id}</span><span class="channel-name">${tvDatabase[key].name}</span>`;
-                
-                btn.addEventListener('click', () => switchChannel(key));
-                dom.channelList.appendChild(btn);
-            }
+        // Создаем кнопки каналов
+        for (const key in tvData) {
+            const btn = document.createElement('button');
+            btn.className = 'channel-btn';
+            btn.id = 'btn-' + key;
+            btn.innerText = tvData[key].name;
+            btn.onclick = () => switchChannel(key);
+            
+            // Чтобы пультом можно было нажать ОК
+            btn.onkeydown = (e) => { if (e.key === 'Enter') switchChannel(key); };
+            channelList.appendChild(btn);
         }
 
-        dom.startBtn.addEventListener('click', function(e) {
+        // Стартовый экран: Одно нажатие, чтобы разблокировать звук навсегда
+        document.getElementById('start-btn').addEventListener('click', function(e) {
             e.preventDefault();
-            dom.player.muted = false;
+            player.muted = false;
             
-            const playPromise = dom.player.play();
-            if (playPromise !== undefined) playPromise.then(() => dom.player.pause()).catch(e => {});
+            // Просим браузер разблокировать медиа
+            const playPromise = player.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => player.pause()).catch(() => {});
+            }
 
-            dom.startScreen.style.opacity = '0';
-            setTimeout(() => dom.startScreen.classList.add('hidden'), 500);
+            document.getElementById('start-screen').style.opacity = '0';
+            setTimeout(() => document.getElementById('start-screen').style.display = 'none', 500);
 
-            switchChannel(Object.keys(tvDatabase)[0]);
-            
-            setInterval(() => {
-                const now = new Date();
-                document.getElementById('nav-clock').innerText = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-            }, 1000);
+            // Включаем первый канал
+            switchChannel('american');
         });
 
-        // МОМЕНТАЛЬНОЕ переключение - убираем долгую задержку статики
-        function triggerInstantStatic() {
-            dom.tvStatic.classList.add('active');
-            setTimeout(() => dom.tvStatic.classList.remove('active'), 150); // Легкий 0.15с блик вместо долгой загрузки
-        }
-
-        function showOSD(channelName, movieTitle, channelId) {
-            dom.osdNumber.innerText = `CH ${channelId}`;
-            dom.osdName.innerText = channelName;
-            dom.osdMovie.innerText = movieTitle;
-            dom.osdContainer.classList.add('visible');
-            
-            if (osdTimeout) clearTimeout(osdTimeout);
-            osdTimeout = setTimeout(() => dom.osdContainer.classList.remove('visible'), 5000);
-        }
-
+        // Функция переключения канала
         function switchChannel(key) {
-            triggerInstantStatic();
             document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active'));
-            const activeBtn = document.getElementById('btn-' + key);
-            if (activeBtn) activeBtn.classList.add('active');
-
-            currentChannelKey = key;
+            document.getElementById('btn-' + key).classList.add('active');
             
-            // Восстанавливаем сохраненное время и МОМЕНТАЛЬНО запускаем
-            restoreBroadcastState(key);
+            currentChannelKey = key;
+            restoreTimeAndPlay(key);
         }
 
-        function bootVideoEngine(channelKey, movieIndex, startTime = 0) {
-            const channelObj = tvDatabase[channelKey];
-            const movieObj = channelObj.items[movieIndex];
+        // Простая и надежная функция загрузки видео
+        function playVideo(channelKey, index, startTime) {
+            const channel = tvData[channelKey];
+            const movie = channel.items[index];
             
-            showOSD(channelObj.name, movieObj.title, channelObj.id);
-            updateEPG(channelObj, movieIndex);
+            // Показываем плашку
+            nowPlaying.innerText = "В эфире: " + movie.title;
+            nowPlaying.style.opacity = 1;
+            if (titleTimeout) clearTimeout(titleTimeout);
+            titleTimeout = setTimeout(() => { nowPlaying.style.opacity = 0; }, 5000);
 
-            if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
 
-            const src = movieObj.src;
-            const isHLS = src.includes('.m3u8') || src.includes('cdnr.interkh.com');
+            const needsHLS = Hls.isSupported() && (movie.src.includes('.m3u8') || movie.src.includes('cdnr.interkh.com'));
 
-            if (Hls.isSupported() && isHLS) {
-                hlsInstance = new Hls({ maxBufferLength: 30, enableWorker: true });
-                hlsInstance.loadSource(src);
-                hlsInstance.attachMedia(dom.player);
+            if (needsHLS) {
+                hlsInstance = new Hls({ enableWorker: true });
+                hlsInstance.loadSource(movie.src);
+                hlsInstance.attachMedia(player);
                 hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
-                    dom.player.currentTime = startTime;
-                    dom.player.play();
-                });
-                hlsInstance.on(Hls.Events.ERROR, function(e, data) {
-                    if (data.fatal) {
-                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hlsInstance.startLoad();
-                        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hlsInstance.recoverMediaError();
-                        else hlsInstance.destroy();
-                    }
+                    player.currentTime = startTime;
+                    player.play();
                 });
             } else {
-                dom.player.src = src;
-                dom.player.addEventListener('loadedmetadata', function onMetaLoaded() {
-                    dom.player.currentTime = startTime;
-                    dom.player.play();
-                    dom.player.removeEventListener('loadedmetadata', onMetaLoaded);
+                player.src = movie.src;
+                player.addEventListener('loadedmetadata', function onLoaded() {
+                    player.currentTime = startTime;
+                    player.play();
+                    player.removeEventListener('loadedmetadata', onLoaded);
                 });
             }
         }
 
-        function runStateSaver() {
-            if (stateSaverInterval) clearInterval(stateSaverInterval);
-            stateSaverInterval = setInterval(() => {
-                if (!dom.player.paused && dom.player.currentTime > 0) {
-                    localStorage.setItem(`tvos_state_${currentChannelKey}`, JSON.stringify({
-                        index: getSavedIndex(currentChannelKey), time: dom.player.currentTime, timestamp: Date.now()
-                    }));
-                }
-            }, 1000);
+        // Надежное сохранение времени (просто запоминаем, где остановились)
+        function getSavedState(channelKey) {
+            const savedStr = localStorage.getItem('tv_' + channelKey);
+            if (savedStr) {
+                try { return JSON.parse(savedStr); } catch(e) {}
+            }
+            return { index: 0, time: 0, ts: Date.now() };
         }
 
-        function getSavedIndex(channelKey) {
-            const data = localStorage.getItem(`tvos_state_${channelKey}`);
-            return data ? (JSON.parse(data).index || 0) : 0;
+        setInterval(() => {
+            if (!player.paused && player.currentTime > 0) {
+                localStorage.setItem('tv_' + currentChannelKey, JSON.stringify({
+                    index: getSavedState(currentChannelKey).index,
+                    time: player.currentTime,
+                    ts: Date.now()
+                }));
+            }
+        }, 1000);
+
+        // Восстановление времени после отсутствия
+        function restoreTimeAndPlay(channelKey) {
+            const state = getSavedState(channelKey);
+            const channel = tvData[channelKey];
+            
+            // Считаем сколько нас не было в секундах
+            let secondsAway = (Date.now() - state.ts) / 1000;
+            let targetIndex = state.index;
+            let targetTime = state.time + secondsAway;
+
+            // Чтобы математика не сломалась, если нас не было больше 2 часов - просто включаем след. фильм
+            if (secondsAway > 7200) { 
+                targetIndex = (targetIndex + 1) % channel.items.length;
+                targetTime = 0;
+            }
+
+            playVideo(channelKey, targetIndex, targetTime);
         }
 
-        function restoreBroadcastState(channelKey) {
-            const data = localStorage.getItem(`tvos_state_${channelKey}`);
-            const channel = tvDatabase[channelKey];
+        // Автопереключение серий (Без вылета из полного экрана!)
+        player.addEventListener('ended', function() {
+            const channel = tvData[currentChannelKey];
+            let nextIndex = getSavedState(currentChannelKey).index + 1;
             
-            if (data) {
-                try {
-                    const state = JSON.parse(data);
-                    const secondsOffline = (Date.now() - state.timestamp) / 1000;
-                    let targetTime = state.time + secondsOffline;
-                    let targetIndex = state.index;
-                    let currentMovieDuration = channel.items[targetIndex].duration_mock || 7200;
-
-                    while (targetTime >= currentMovieDuration) {
-                        targetTime -= currentMovieDuration;
-                        targetIndex = (targetIndex + 1) % channel.items.length;
-                        currentMovieDuration = channel.items[targetIndex].duration_mock || 7200;
-                    }
-
-                    localStorage.setItem(`tvos_state_${channelKey}`, JSON.stringify({ index: targetIndex, time: targetTime, timestamp: Date.now() }));
-                    bootVideoEngine(channelKey, targetIndex, targetTime);
-                } catch(e) { bootVideoEngine(channelKey, 0, 0); }
-            } else { bootVideoEngine(channelKey, 0, 0); }
-        }
-
-        function updateEPG(channelObj, currentIndex) {
-            const currentItem = channelObj.items[currentIndex];
-            const nextItem = channelObj.items[(currentIndex + 1) % channelObj.items.length];
-            const now = new Date();
-            const formatTime = (date) => date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
-
-            dom.epgNowTime.innerText = formatTime(now);
-            dom.epgNowTitle.innerText = currentItem.title;
-
-            const remainingSeconds = (currentItem.duration_mock || 7200) - dom.player.currentTime;
-            const nextTimeDate = new Date(now.getTime() + remainingSeconds * 1000);
+            if (nextIndex >= channel.items.length) {
+                nextIndex = 0;
+            }
             
-            dom.epgNextTime.innerText = formatTime(nextTimeDate);
-            dom.epgNextTitle.innerText = nextItem.title;
-        }
-
-        // БЕСКОНЕЧНЫЙ ЭФИР: когда видео кончилось - сразу грузим следующее, НЕ закрывая полный экран!
-        dom.player.addEventListener('ended', function() {
-            const channel = tvDatabase[currentChannelKey];
-            let nextIndex = getSavedIndex(currentChannelKey) + 1;
-            if (nextIndex >= channel.items.length) { nextIndex = 0; }
+            // Сбрасываем время для нового фильма
+            localStorage.setItem('tv_' + currentChannelKey, JSON.stringify({ index: nextIndex, time: 0, ts: Date.now() }));
             
-            localStorage.setItem(`tvos_state_${currentChannelKey}`, JSON.stringify({ index: nextIndex, time: 0, timestamp: Date.now() }));
-            
-            triggerInstantStatic();
-            // Вызов загрузки нового фильма. Так как "Full Screen" включен на контейнере, он не закроется!
-            bootVideoEngine(currentChannelKey, nextIndex, 0);
+            // Включаем (так как контейнер в полном экране, он не закроется)
+            playVideo(currentChannelKey, nextIndex, 0);
         });
 
-        // ==========================================================
-        // ЛОГИКА FULLSCREEN (на весь экран разворачивается КОНТЕЙНЕР)
-        // ==========================================================
-        
+        // --- БЕСШОВНЫЙ ПОЛНЫЙ ЭКРАН ---
+        // Разворачиваем именно tvContainer, а не плеер!
         function toggleFullscreen() {
-            // Проверяем, открыт ли сейчас полный экран
-            const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+            const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
             
             if (!isFullscreen) {
-                // Пытаемся открыть контейнер телевизора во весь экран (для ПК, Android, эмуляторов)
-                if (dom.tvScreen.requestFullscreen) { dom.tvScreen.requestFullscreen(); } 
-                else if (dom.tvScreen.webkitRequestFullscreen) { dom.tvScreen.webkitRequestFullscreen(); } 
-                else if (dom.player.webkitEnterFullscreen) { dom.player.webkitEnterFullscreen(); } // Запасной для старых iOS
-                dom.fullscreenBtn.innerText = "[x] Свернуть";
+                if (tvContainer.requestFullscreen) { tvContainer.requestFullscreen(); }
+                else if (tvContainer.webkitRequestFullscreen) { tvContainer.webkitRequestFullscreen(); }
+                fsBtn.innerText = "[X] Свернуть";
             } else {
-                // Закрываем полный экран
-                if (document.exitFullscreen) { document.exitFullscreen(); } 
+                if (document.exitFullscreen) { document.exitFullscreen(); }
                 else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
-                dom.fullscreenBtn.innerText = "[ ] Во весь экран";
+                fsBtn.innerText = "[ ] На весь экран";
             }
         }
 
-        // Клик по кнопке "Во весь экран"
-        dom.fullscreenBtn.addEventListener('click', toggleFullscreen);
+        fsBtn.addEventListener('click', toggleFullscreen);
 
-        // Двойной клик по самому экрану телевизора также открывает/закрывает полный экран
-        dom.clickLayer.addEventListener('dblclick', toggleFullscreen);
-
-        // Отслеживание нажатия Esc или кнопок телефона "Назад", чтобы вернуть текст кнопки
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) dom.fullscreenBtn.innerText = "[ ] Во весь экран";
-        });
-        document.addEventListener('webkitfullscreenchange', () => {
-            if (!document.webkitFullscreenElement) dom.fullscreenBtn.innerText = "[ ] Во весь экран";
-        });
-
-        window.addEventListener('DOMContentLoaded', () => {
-            buildChannelMenu();
-            runStateSaver();
-        });
+        // Если вышли через Esc - меняем текст кнопки обратно
+        document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) fsBtn.innerText = "[ ] На весь экран"; });
+        document.addEventListener('webkitfullscreenchange', () => { if (!document.webkitFullscreenElement) fsBtn.innerText = "[ ] На весь экран"; });
 
     </script>
 </body>
